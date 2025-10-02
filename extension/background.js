@@ -466,6 +466,24 @@ function downloadTranscript(index, isWebhookEnabled) {
                 content += "Transcript saved using TranscripTonic Chrome extension (https://chromewebstore.google.com/detail/ciepnfnceimjehngolkijpnbappkkiag)"
                 content += "\n---------------"
 
+                if (isFirefox()) {
+                    sendDownloadToMeetingsPage(fileName, content)
+                        .then(() => {
+                            console.log("Transcript downloaded")
+                            resolve("Transcript downloaded successfully")
+
+                            // Increment anonymous transcript generated count to a Google sheet
+                            fetch(`https://script.google.com/macros/s/AKfycbxgUPDKDfreh2JIs8pIC-9AyQJxq1lx9Q1qI2SVBjJRvXQrYCPD2jjnBVQmds2mYeD5nA/exec?version=${chrome.runtime.getManifest().version}&isWebhookEnabled=${isWebhookEnabled}&meetingSoftware=${meeting.meetingSoftware}`, {
+                                mode: "no-cors"
+                            })
+                        })
+                        .catch((err) => {
+                            console.error(err)
+                            reject({ errorCode: "009", errorMessage: "Failed to trigger Firefox download" })
+                        })
+                    return
+                }
+
                 const blob = new Blob([content], { type: "text/plain" })
 
                 // Read the blob as a data URL
@@ -704,6 +722,57 @@ function recoverLastMeeting() {
             else {
                 reject({ errorCode: "013", errorMessage: "No meetings found. May be attend one?" })
             }
+        })
+    })
+}
+
+function isFirefox() {
+    // @ts-ignore - browser is a Firefox-specific global
+    return typeof browser !== "undefined" && /firefox/i.test(navigator.userAgent)
+}
+
+/**
+ * @param {string} fileName
+ * @param {string} content
+ */
+function sendDownloadToMeetingsPage(fileName, content) {
+    return new Promise((resolve, reject) => {
+        chrome.tabs.query({}, function (tabs) {
+            const meetingsTab = tabs.find(tab => tab.url && tab.url.includes("meetings.html"))
+
+            const sendDownloadMessage = function (tabId) {
+                chrome.tabs.sendMessage(
+                    tabId,
+                    {
+                        type: "download_transcript_blob",
+                        fileName: fileName,
+                        blobContent: content
+                    },
+                    function (response) {
+                        if (response && response.success) {
+                            resolve("Transcript downloaded successfully")
+                        }
+                        else {
+                            reject(new Error("Failed to trigger download in meetings page"))
+                        }
+                    }
+                )
+            }
+
+            if (meetingsTab?.id) {
+                sendDownloadMessage(meetingsTab.id)
+                return
+            }
+
+            chrome.tabs.create({ url: chrome.runtime.getURL("meetings.html"), active: true }, function (newTab) {
+                const listener = function (tabId, changeInfo) {
+                    if (tabId === newTab.id && changeInfo.status === "complete" && newTab.id) {
+                        chrome.tabs.onUpdated.removeListener(listener)
+                        sendDownloadMessage(newTab.id)
+                    }
+                }
+                chrome.tabs.onUpdated.addListener(listener)
+            })
         })
     })
 }

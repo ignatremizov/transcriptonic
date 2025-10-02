@@ -1,0 +1,63 @@
+{
+  "manifest_version": 2,
+  "name": "TranscripTonic",
+  "version": "3.3.1",
+  "description": "Simple Google Meet transcripts. Private and open source.",
+  "browser_action": {
+    "default_icon": "icon.png",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "content-google-meet.js"
+      ],
+      "run_at": "document_end",
+      "matches": [
+        "https://meet.google.com/*"
+      ],
+      "exclude_matches": [
+        "https://meet.google.com/"
+      ]
+    },
+    {
+      "js": [
+        "content-teams.js"
+      ],
+      "run_at": "document_end",
+      "matches": [
+        "https://teams.live.com/*",
+        "https://teams.microsoft.com/*"
+      ]
+    },
+    {
+      "js": [
+        "content-zoom.js"
+      ],
+      "run_at": "document_end",
+      "matches": [
+        "https://*.zoom.us/*"
+      ]
+    }
+  ],
+  "permissions": [
+    "storage",
+    "downloads",
+    "https://meet.google.com/*",
+    "https://teams.live.com/*",
+    "https://teams.microsoft.com/*",
+    "https://*.zoom.us/*",
+    "https://*/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "web_accessible_resources": [
+    "meetings.html"
+  ]
+}

@@ -1,2 +1,11 @@
 extension.zip
 /extension/_metadata
+dist/
+*.zip
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.idea/
+.vscode/
