@@ -30,7 +30,7 @@ View video on [YouTube](https://www.youtube.com/watch?v=ARL6HbkakX4)
 </a>
 
 ## Firefox
-<a href="https://addons.mozilla.org/firefox/addon/transcriptonic-mv2/" target="_blank">
+<a href="https://addons.mozilla.org/en-US/firefox/addon/transcriptonic-mv2/" target="_blank">
     <img src="https://blog.mozilla.org/addons/files/2020/04/get-the-addon-fx-apr-2020.svg" alt="Get the Add-on for Firefox" height="60px" />
 </a>
 
