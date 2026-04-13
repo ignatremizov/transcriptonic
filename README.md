@@ -7,6 +7,8 @@ Simple Google Meet transcripts. Private and open source. Works on Chrome and Fir
 
 Extension status: 🟢 OPERATIONAL (v3.3.1)
 
+Fork note: this fork tracks [vivek-nexus/transcriptonic](https://github.com/vivek-nexus/transcriptonic) as the upstream project and carries Firefox support from [bpetrynski/transcriptonic](https://github.com/bpetrynski/transcriptonic).
+
 <br />
 <br />
 
