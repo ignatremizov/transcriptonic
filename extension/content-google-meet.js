@@ -177,8 +177,7 @@ function meetingRoutines(uiType) {
         })
 
         // Allow DOM to be updated. Once updated, next "then" block will be executed.
-        return waitForElement(`div[role="region"][tabindex="0"]`)
-          .then(targetNode => (targetNode))
+        return waitForCaptionsContainer()
       })
       .then((targetNode) => {
         // CRITICAL DOM DEPENDENCY. Grab the transcript element. This element is present, irrespective of captions ON/OFF, so this executes independent of operation mode.
@@ -268,7 +267,7 @@ function meetingRoutines(uiType) {
           pushBufferToTranscript()
         }
         // Save to chrome storage and send message to download transcript from background script
-        overWriteChromeStorage(["transcript", "chatMessages"], true)
+        overWriteChromeStorage(["transcript", "activeTranscriptBlock", "chatMessages"], true)
       })
     } catch (err) {
       console.error(err)
@@ -291,7 +290,14 @@ function meetingRoutines(uiType) {
 function transcriptMutationCallback(mutationsList) {
   mutationsList.forEach((mutation) => {
     try {
-      if (mutation.type === "characterData") {
+      const captionBlocks = getCaptionBlocksFromMutation(mutation)
+
+      if (captionBlocks.length > 0) {
+        captionBlocks.forEach((captionBlock) => {
+          processTranscriptBlock(captionBlock.personName, captionBlock.transcriptText, captionBlock.captionElement)
+        })
+      }
+      else if (mutation.type === "characterData") {
         const mutationTargetElement = mutation.target.parentElement
         const transcriptUIBlocks = [...mutationTargetElement?.parentElement?.parentElement?.children || []]
         const isLastButSecondElement = transcriptUIBlocks[transcriptUIBlocks.length - 3] === mutationTargetElement?.parentElement ? true : false
@@ -302,44 +308,7 @@ function transcriptMutationCallback(mutationsList) {
           const currentTranscriptText = mutationTargetElement?.textContent
 
           if (currentPersonName && currentTranscriptText) {
-            // Attempt to dim down the current transcript
-            [...transcriptUIBlocks[transcriptUIBlocks.length - 3].children].forEach((item) => {
-              item.setAttribute("style", "opacity:0.2")
-            })
-
-            // Starting fresh in a meeting or resume from no active transcript
-            if (transcriptTextBuffer === "") {
-              personNameBuffer = currentPersonName
-              timestampBuffer = new Date().toISOString()
-              transcriptTextBuffer = currentTranscriptText
-            }
-            // Some prior transcript buffer exists
-            else {
-              // New person started speaking 
-              if (personNameBuffer !== currentPersonName) {
-                // Push previous person's transcript as a block
-                pushBufferToTranscript()
-
-                // Update buffers for next mutation and store transcript block timestamp
-                personNameBuffer = currentPersonName
-                timestampBuffer = new Date().toISOString()
-                transcriptTextBuffer = currentTranscriptText
-              }
-              // Same person speaking more
-              else {
-                // When the same person speaks for more than 30 min (approx), Meet drops very long transcript for current person and starts over, which is detected by current transcript string being significantly smaller than the previous one
-                if ((currentTranscriptText.length - transcriptTextBuffer.length) < -250) {
-                  // Push the long transcript
-                  pushBufferToTranscript()
-
-                  // Store transcript block timestamp for next transcript block of same person
-                  timestampBuffer = new Date().toISOString()
-                }
-
-                // Update buffers for next mutation
-                transcriptTextBuffer = currentTranscriptText
-              }
-            }
+            processTranscriptBlock(currentPersonName, currentTranscriptText, transcriptUIBlocks[transcriptUIBlocks.length - 3])
           }
           // No people found in transcript DOM
           else {
@@ -434,6 +403,101 @@ function chatMessagesMutationCallback(mutationsList) {
 
 
 //*********** HELPER FUNCTIONS **********//
+/**
+ * @description Updates the transcript buffer from a speaker/text pair.
+ * @param {string} currentPersonName
+ * @param {string} currentTranscriptText
+ * @param {Element | undefined | null} captionElement
+ */
+function processTranscriptBlock(currentPersonName, currentTranscriptText, captionElement) {
+  if (!currentPersonName || !currentTranscriptText) {
+    return
+  }
+
+  if (captionElement instanceof Element) {
+    captionElement.setAttribute("style", "opacity:0.2")
+    captionElement.querySelectorAll("*").forEach((item) => {
+      if (item instanceof HTMLElement) {
+        item.setAttribute("style", "opacity:0.2")
+      }
+    })
+  }
+
+  // Starting fresh in a meeting or resume from no active transcript
+  if (transcriptTextBuffer === "") {
+    personNameBuffer = currentPersonName
+    timestampBuffer = new Date().toISOString()
+    transcriptTextBuffer = currentTranscriptText
+  }
+  // Some prior transcript buffer exists
+  else {
+    // New person started speaking
+    if (personNameBuffer !== currentPersonName) {
+      // Push previous person's transcript as a block
+      pushBufferToTranscript()
+
+      // Update buffers for next mutation and store transcript block timestamp
+      personNameBuffer = currentPersonName
+      timestampBuffer = new Date().toISOString()
+      transcriptTextBuffer = currentTranscriptText
+    }
+    // Same person speaking more
+    else {
+      // When the same person speaks for more than 30 min (approx), Meet drops very long transcript for current person and starts over, which is detected by current transcript string being significantly smaller than the previous one
+      if ((currentTranscriptText.length - transcriptTextBuffer.length) < -250) {
+        // Push the long transcript
+        pushBufferToTranscript()
+
+        // Store transcript block timestamp for next transcript block of same person
+        timestampBuffer = new Date().toISOString()
+      }
+
+      // Update buffers for next mutation
+      transcriptTextBuffer = currentTranscriptText
+    }
+  }
+
+  saveActiveTranscriptBlock(false)
+}
+
+/**
+ * @description Extracts caption blocks from the current Google Meet captions DOM.
+ * @param {MutationRecord} mutation
+ * @returns {{ personName: string, transcriptText: string, captionElement: Element }[]}
+ */
+function getCaptionBlocksFromMutation(mutation) {
+  /** @type {Element[]} */
+  const speakerBlocks = []
+  /** @type {{ personName: string, transcriptText: string, captionElement: Element }[]} */
+  const captionBlocks = []
+  const addSpeakerBlock = (node) => {
+    const element = node instanceof Element ? node : node.parentElement
+    const speakerBlock = element?.closest(".nMcdL.bj4p3b")
+    if (speakerBlock && !speakerBlocks.includes(speakerBlock)) {
+      speakerBlocks.push(speakerBlock)
+    }
+  }
+
+  addSpeakerBlock(mutation.target)
+  mutation.addedNodes.forEach(addSpeakerBlock)
+
+  speakerBlocks.forEach((speakerBlock) => {
+    const personName = speakerBlock.querySelector(".NWpY1d, .KcIKyf.jxFHg")?.textContent?.trim()
+    const captionElement = speakerBlock.querySelector(".ygicle.VbkSU")
+    const transcriptText = captionElement?.textContent?.trim()
+
+    if (personName && transcriptText && captionElement) {
+      captionBlocks.push({
+        personName,
+        transcriptText,
+        captionElement
+      })
+    }
+  })
+
+  return captionBlocks
+}
+
 /**
  * @description Pushes data in the buffer to transcript array as a transcript block
  */
@@ -623,6 +687,27 @@ async function waitForElement(selector, text) {
     }
   }
   return document.querySelector(selector)
+}
+
+/**
+ * @description Waits for the live Google Meet captions region. Tries the current explicit captions region first and keeps older selectors as fallbacks.
+ */
+async function waitForCaptionsContainer() {
+  const selectors = [
+    `div[role="region"][aria-label="Captions"]`,
+    ".iOzk7",
+    `div[role="region"][tabindex="0"]`
+  ]
+
+  while (true) {
+    for (const selector of selectors) {
+      const element = document.querySelector(selector)
+      if (element) {
+        return element
+      }
+    }
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+  }
 }
 
 /**
