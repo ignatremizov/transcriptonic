@@ -14,12 +14,27 @@ window.onload = function () {
   const teamsToggle = /** @type {HTMLInputElement} */ (document.querySelector("#enable-teams"))
   const zoomToggle = /** @type {HTMLInputElement} */ (document.querySelector("#enable-zoom"))
 
+  if (autoModeRadio instanceof HTMLInputElement) {
+    autoModeRadio.checked = true
+  }
+  if (googleMeetToggle) {
+    googleMeetToggle.checked = true
+  }
+
   if (versionElement) {
     versionElement.innerHTML = `v${chrome.runtime.getManifest().version}`
   }
 
-  chrome.storage.sync.get(["operationMode"], function (resultSyncUntyped) {
+  chrome.storage.sync.get(["operationMode", "wantGoogleMeet", "wantTeams", "wantZoom"], function (resultSyncUntyped) {
     const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+
+    chrome.storage.sync.set({
+      operationMode: resultSync.operationMode === "manual" ? "manual" : "auto",
+      wantGoogleMeet: resultSync.wantGoogleMeet === false ? false : true,
+      wantTeams: resultSync.wantTeams === true ? true : false,
+      wantZoom: resultSync.wantZoom === true ? true : false,
+    }, function () { })
+
     if (autoModeRadio instanceof HTMLInputElement && manualModeRadio instanceof HTMLInputElement) {
       if (resultSync.operationMode === "manual") {
         manualModeRadio.checked = true
@@ -35,6 +50,16 @@ window.onload = function () {
         chrome.storage.sync.set({ operationMode: "manual" }, function () { })
       })
     }
+
+    if (googleMeetToggle) {
+      googleMeetToggle.checked = resultSync.wantGoogleMeet === false ? false : true
+    }
+    if (teamsToggle) {
+      teamsToggle.checked = resultSync.wantTeams === true
+    }
+    if (zoomToggle) {
+      zoomToggle.checked = resultSync.wantZoom === true
+    }
   })
 
   /**
@@ -43,6 +68,13 @@ window.onload = function () {
    * @param {Platform} platform 
    */
   function syncPlatformStatus(element, platform) {
+    const storageKeyByPlatform = {
+      google_meet: "wantGoogleMeet",
+      teams: "wantTeams",
+      zoom: "wantZoom"
+    }
+    const storageKey = storageKeyByPlatform[platform]
+
     /** @type {ExtensionMessage} */
     const message = {
       type: "get_platform_status",
@@ -57,6 +89,9 @@ window.onload = function () {
 
     element.addEventListener("change", () => {
       const type = element.checked ? "enable_platform" : "disable_platform"
+      const desiredState = element.checked
+
+      chrome.storage.sync.set({ [storageKey]: desiredState }, function () { })
 
       /** @type {ExtensionMessage} */
       const message = {
@@ -66,22 +101,11 @@ window.onload = function () {
       chrome.runtime.sendMessage(message, (responseUntyped) => {
         const response = /** @type {ExtensionResponse} */ (responseUntyped)
         if (response?.success) {
-          switch (platform) {
-            case "google_meet":
-              chrome.storage.sync.set({ wantGoogleMeet: element.checked }, function () { })
-              break
-            case "teams":
-              chrome.storage.sync.set({ wantTeams: element.checked }, function () { })
-              break
-            case "zoom":
-              chrome.storage.sync.set({ wantZoom: element.checked }, function () { })
-              break
-            default:
-              break
-          }
+          chrome.storage.sync.set({ [storageKey]: desiredState }, function () { })
         }
         else {
           element.checked = !element.checked // Revert on failure
+          chrome.storage.sync.set({ [storageKey]: element.checked }, function () { })
           console.error(`Failed to toggle ${platform}:`, response?.message)
         }
       })

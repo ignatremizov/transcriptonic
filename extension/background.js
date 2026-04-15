@@ -293,7 +293,7 @@ chrome.runtime.onInstalled.addListener(() => {
     reRegisterContentScripts()
 
     // Set defaults values
-    chrome.storage.sync.get(["autoPostWebhookAfterMeeting", "autoDownloadFileAfterMeeting", "operationMode", "webhookBodyType", "webhookUrl"], function (resultSyncUntyped) {
+    chrome.storage.sync.get(["autoPostWebhookAfterMeeting", "autoDownloadFileAfterMeeting", "operationMode", "webhookBodyType", "webhookUrl", "wantGoogleMeet", "wantTeams", "wantZoom"], function (resultSyncUntyped) {
         const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
 
         chrome.storage.sync.set({
@@ -301,6 +301,9 @@ chrome.runtime.onInstalled.addListener(() => {
             autoDownloadFileAfterMeeting: resultSync.autoDownloadFileAfterMeeting === false ? false : true,
             operationMode: resultSync.operationMode === "manual" ? "manual" : "auto",
             webhookBodyType: resultSync.webhookBodyType === "advanced" ? "advanced" : "simple",
+            wantGoogleMeet: resultSync.wantGoogleMeet === false ? false : true,
+            wantTeams: resultSync.wantTeams === true ? true : false,
+            wantZoom: resultSync.wantZoom === true ? true : false,
         }, function () { })
     })
 })
@@ -1107,7 +1110,11 @@ function getStoredPlatformPreference(platform) {
 
         const key = keyByPlatform[platform]
         chrome.storage.sync.get([key], function (resultSync) {
-            resolve(resultSync[key] === false ? "Disabled" : "Enabled")
+            if (platform === "google_meet") {
+                resolve(resultSync[key] === false ? "Disabled" : "Enabled")
+                return
+            }
+            resolve(resultSync[key] === true ? "Enabled" : "Disabled")
         })
     })
 }
