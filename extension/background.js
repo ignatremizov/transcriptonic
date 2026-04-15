@@ -461,11 +461,6 @@ function downloadTranscript(index, isWebhookEnabled) {
                 content += `\n\n---------------\nCHAT MESSAGES\n---------------\n\n`
                 content += getChatMessagesString(meeting.chatMessages)
 
-                // Add branding
-                content += "\n\n---------------\n"
-                content += "Transcript saved using TranscripTonic Chrome extension (https://chromewebstore.google.com/detail/ciepnfnceimjehngolkijpnbappkkiag)"
-                content += "\n---------------"
-
                 if (isFirefox()) {
                     sendDownloadToMeetingsPage(fileName, content)
                         .then(() => {
