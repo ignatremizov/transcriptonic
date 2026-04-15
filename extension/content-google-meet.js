@@ -27,6 +27,7 @@ let transcript = []
    */
 let transcriptTargetBuffer
 let personNameBuffer = "", transcriptTextBuffer = "", timestampBuffer = ""
+let lastActiveTranscriptSaveAt = 0
 
 // Chat messages array that holds one or more chat messages of the meeting
 /** @type {ChatMessage[]} */
@@ -71,7 +72,7 @@ Promise.race([
   }).
   finally(() => {
     // Save current meeting data to chrome storage once recovery is complete or is aborted
-    overWriteChromeStorage(["meetingSoftware", "meetingStartTimestamp", "meetingTitle", "transcript", "chatMessages"], false)
+    overWriteChromeStorage(["meetingSoftware", "meetingStartTimestamp", "meetingTitle", "transcript", "activeTranscriptBlock", "chatMessages"], false)
   })
 
 
@@ -351,7 +352,9 @@ function transcriptMutationCallback(mutationsList) {
             // Update buffers for the next person in the next mutation
             personNameBuffer = ""
             transcriptTextBuffer = ""
+            saveActiveTranscriptBlock(true)
           }
+          saveActiveTranscriptBlock(false)
         }
       }
 
@@ -461,7 +464,7 @@ function pushUniqueChatBlock(chatBlock) {
 
 /**
  * @description Saves specified variables to chrome storage. Optionally, can send message to background script to download, post saving.
- * @param {Array<"meetingSoftware"  | "meetingTitle" | "meetingStartTimestamp" | "transcript" | "chatMessages">} keys
+ * @param {Array<"meetingSoftware"  | "meetingTitle" | "meetingStartTimestamp" | "transcript" | "activeTranscriptBlock" | "chatMessages">} keys
  * @param {boolean} sendDownloadMessage
  */
 function overWriteChromeStorage(keys, sendDownloadMessage) {
@@ -478,6 +481,9 @@ function overWriteChromeStorage(keys, sendDownloadMessage) {
   }
   if (keys.includes("transcript")) {
     objectToSave.transcript = transcript
+  }
+  if (keys.includes("activeTranscriptBlock")) {
+    objectToSave.activeTranscriptBlock = getActiveTranscriptBlock()
   }
   if (keys.includes("chatMessages")) {
     objectToSave.chatMessages = chatMessages
@@ -499,6 +505,33 @@ function overWriteChromeStorage(keys, sendDownloadMessage) {
       })
     }
   })
+}
+
+/**
+ * @returns {TranscriptBlock | null}
+ */
+function getActiveTranscriptBlock() {
+  if ((personNameBuffer === "") || (transcriptTextBuffer === "")) {
+    return null
+  }
+
+  return {
+    personName: personNameBuffer === "You" ? userName : personNameBuffer,
+    timestamp: timestampBuffer || new Date().toISOString(),
+    transcriptText: transcriptTextBuffer
+  }
+}
+
+/**
+ * @param {boolean} force
+ */
+function saveActiveTranscriptBlock(force) {
+  const now = Date.now()
+  if (!force && ((now - lastActiveTranscriptSaveAt) < 1000)) {
+    return
+  }
+  lastActiveTranscriptSaveAt = now
+  chrome.storage.local.set({ activeTranscriptBlock: getActiveTranscriptBlock() }, function () { })
 }
 
 /**

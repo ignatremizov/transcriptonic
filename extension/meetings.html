@@ -283,6 +283,19 @@
             font-weight: bold
         }
 
+        .status-live {
+            color: #2A9ACA;
+            font-weight: bold;
+        }
+
+        #meetings-table tr {
+            cursor: pointer;
+        }
+
+        #meetings-table tr.selected-meeting {
+            background: #2a9aca1a;
+        }
+
         .download-button,
         .delete-button,
         .post-button {
@@ -351,6 +364,79 @@
             overflow-y: hidden;
         }
 
+        .meeting-log-viewer {
+            margin-top: 1.5rem;
+            background: #ffffff1a;
+            border: 1px solid #2a9aca33;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .meeting-log-header {
+            padding: 1rem 1.5rem;
+            background: #2a9aca1a;
+        }
+
+        .meeting-log-header h3 {
+            margin: 0;
+        }
+
+        .meeting-log-meta {
+            margin: 0.25rem 0 0 0;
+            color: #a0a0a0;
+            font-size: small;
+        }
+
+        .meeting-log-body {
+            max-height: 32rem;
+            overflow-y: auto;
+            padding: 1rem 1.5rem;
+        }
+
+        .log-empty {
+            color: #a0a0a0;
+            margin: 0;
+        }
+
+        .log-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .log-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .log-heading {
+            color: #2A9ACA;
+            font-weight: bold;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .log-entry {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #2a9aca33;
+        }
+
+        .log-entry:last-child {
+            border-bottom: 0;
+        }
+
+        .log-entry-meta {
+            color: #a0a0a0;
+            font-size: small;
+            margin-bottom: 0.35rem;
+        }
+
+        .log-entry-speaker {
+            color: #C0C0C0;
+            font-weight: bold;
+        }
+
+        .log-entry-text {
+            white-space: pre-wrap;
+            line-height: 1.45;
+        }
+
         section {
             margin-bottom: 5rem;
         }
@@ -387,6 +473,15 @@
             <button id="show-all" style="display: none;">Show
                 all
             </button>
+            <div id="meeting-log-viewer" class="meeting-log-viewer" hidden>
+                <div class="meeting-log-header">
+                    <h3 id="meeting-log-title">Meeting log</h3>
+                    <p id="meeting-log-meta" class="meeting-log-meta"></p>
+                </div>
+                <div id="meeting-log-body" class="meeting-log-body">
+                    <p class="log-empty">Select a meeting to read the transcript.</p>
+                </div>
+            </div>
         </section>
 
         <section id="webhooks">

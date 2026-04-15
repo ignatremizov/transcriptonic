@@ -34,6 +34,7 @@
  * @property {MeetingTitle} meetingTitle
  * @property {MeetingStartTimestamp} meetingStartTimestamp
  * @property {Transcript} transcript
+ * @property {TranscriptBlock | null | undefined} activeTranscriptBlock in-progress transcript block for the current speaker
  * @property {ChatMessages} chatMessages
  * @property {IsDeferredUpdatedAvailable | undefined} isDeferredUpdatedAvailable
  * @property {Meeting[] | undefined} meetings
@@ -53,6 +54,7 @@
  * @property {string} meetingStartTimestamp ISO timestamp of when the meeting started
  * @property {string} meetingEndTimestamp ISO timestamp of when the meeting ended
  * @property {TranscriptBlock[] | []} transcript array containing transcript blocks from the meeting
+ * @property {TranscriptBlock | null | undefined} [activeTranscriptBlock] in-progress transcript block for a live meeting view
  * @property {ChatMessage[] | []} chatMessages array containing chat messages from the meeting
  * @property {"new" | "failed" | "successful"} webhookPostStatus status of the webhook post request
  */
@@ -71,6 +73,9 @@
  */
 /**
  * @typedef {TranscriptBlock[]} Transcript Transcript of the most recent meeting, dumped by content script
+ */
+/**
+ * @typedef {TranscriptBlock | null} ActiveTranscriptBlock Current uncommitted transcript block, dumped by content script while a speaker is still talking
  */
 /**
  * @typedef {ChatMessage[]} ChatMessages Chat messages captured during the most recent meeting, dumped by content script

@@ -374,12 +374,15 @@ function pickupLastMeetingFromStorage() {
             "meetingTitle",
             "meetingStartTimestamp",
             "transcript",
+            "activeTranscriptBlock",
             "chatMessages",
         ], function (resultUntyped) {
             const result = /** @type {ResultLocal} */ (resultUntyped)
 
             if (result.meetingStartTimestamp) {
-                if ((result.transcript.length > 0) || (result.chatMessages.length > 0)) {
+                const transcript = getTranscriptWithActiveBlock(result.transcript || [], result.activeTranscriptBlock)
+                const chatMessages = result.chatMessages || []
+                if ((transcript.length > 0) || (chatMessages.length > 0)) {
                     // Create new transcript entry
                     /** @type {Meeting} */
                     const newMeetingEntry = {
@@ -387,8 +390,8 @@ function pickupLastMeetingFromStorage() {
                         meetingTitle: result.meetingTitle,
                         meetingStartTimestamp: result.meetingStartTimestamp,
                         meetingEndTimestamp: new Date().toISOString(),
-                        transcript: result.transcript,
-                        chatMessages: result.chatMessages,
+                        transcript: transcript,
+                        chatMessages: chatMessages,
                         webhookPostStatus: "new"
                     }
 
@@ -404,7 +407,7 @@ function pickupLastMeetingFromStorage() {
                         }
 
                         // Save updated recent transcripts
-                        chrome.storage.local.set({ meetings: meetings }, function () {
+                        chrome.storage.local.set({ meetings: meetings, activeTranscriptBlock: null }, function () {
                             console.log("Last meeting picked up")
                             resolve("Last meeting picked up")
                         })
@@ -419,6 +422,26 @@ function pickupLastMeetingFromStorage() {
             }
         })
     })
+}
+
+/**
+ * @param {TranscriptBlock[]} transcript
+ * @param {TranscriptBlock | null | undefined} activeTranscriptBlock
+ */
+function getTranscriptWithActiveBlock(transcript, activeTranscriptBlock) {
+    if (!activeTranscriptBlock || !activeTranscriptBlock.transcriptText) {
+        return transcript
+    }
+
+    const lastBlock = transcript[transcript.length - 1]
+    if (lastBlock &&
+        lastBlock.personName === activeTranscriptBlock.personName &&
+        lastBlock.timestamp === activeTranscriptBlock.timestamp &&
+        lastBlock.transcriptText === activeTranscriptBlock.transcriptText) {
+        return transcript
+    }
+
+    return [...transcript, activeTranscriptBlock]
 }
 
 

@@ -3,6 +3,7 @@
 /// <reference path="../types/index.js" />
 
 let isMeetingsTableExpanded = false
+let selectedMeetingKey = ""
 
 document.addEventListener("DOMContentLoaded", function () {
     const webhookUrlForm = document.querySelector("#webhook-url-form")
@@ -217,60 +218,55 @@ function requestWebhookAndNotificationPermission(url) {
 // Load and display recent transcripts
 function loadMeetings() {
     const meetingsTable = document.querySelector("#meetings-table")
+    const meetingLogViewer = document.querySelector("#meeting-log-viewer")
 
-    chrome.storage.local.get(["meetings"], function (resultLocalUntyped) {
+    chrome.storage.local.get(["meetings", "meetingTabId", "meetingSoftware", "meetingTitle", "meetingStartTimestamp", "transcript", "activeTranscriptBlock", "chatMessages"], function (resultLocalUntyped) {
         const resultLocal = /** @type {ResultLocal} */ (resultLocalUntyped)
+        const displayMeetings = getDisplayMeetings(resultLocal)
+
         // Clear existing content
         if (meetingsTable) {
             meetingsTable.innerHTML = ""
 
-
-            if (resultLocal.meetings && resultLocal.meetings.length > 0) {
-                const meetings = resultLocal.meetings
+            if (displayMeetings.length > 0) {
+                if (!selectedMeetingKey || !displayMeetings.some(item => item.key === selectedMeetingKey)) {
+                    selectedMeetingKey = displayMeetings[0].key
+                }
                 // Loop through the array in reverse order to list latest meeting first
-                for (let i = meetings.length - 1; i >= 0; i--) {
-                    const meeting = meetings[i]
+                displayMeetings.forEach((displayMeeting) => {
+                    const meeting = displayMeeting.meeting
+                    const i = displayMeeting.index
                     const timestamp = new Date(meeting.meetingStartTimestamp).toLocaleString()
-                    const durationString = getDuration(meeting.meetingStartTimestamp, meeting.meetingEndTimestamp)
+                    const durationString = displayMeeting.isLive ? "Live now" : getDuration(meeting.meetingStartTimestamp, meeting.meetingEndTimestamp)
+                    const meetingTitle = meeting.meetingTitle || meeting.title || "Google Meet call"
 
                     const row = document.createElement("tr")
+                    row.dataset.meetingKey = displayMeeting.key
+                    if (displayMeeting.key === selectedMeetingKey) {
+                        row.classList.add("selected-meeting")
+                    }
                     row.innerHTML = `
                     <td>
-                        <div contenteditable="true" class="meeting-title" data-index="${i}" title="Rename">
-                        ${meeting.meetingTitle || meeting.title || "Google Meet call"}
+                        <div ${displayMeeting.isLive ? "" : `contenteditable="true"`} class="meeting-title" data-index="${i}" title="${displayMeeting.isLive ? "Current meeting" : "Rename"}">
+                        ${escapeHTML(meetingTitle)}
                     </div>
                     </td>
                     <td>
                      ${meeting.meetingSoftware ? meeting.meetingSoftware : ""} 
                     </td>
                     <td>${timestamp} &nbsp; &#9679; &nbsp; ${durationString}</td>
-                    <td>
-                        ${(
-                            () => {
-                                switch (meeting.webhookPostStatus) {
-                                    case "successful":
-                                        return `<span class="status-success">Successful</span>`
-                                    case "failed":
-                                        return `<span class="status-failed">Failed</span>`
-                                    case "new":
-                                        return `<span class="status-new">New</span>`
-                                    default:
-                                        return `<span class="status-new">Unknown</span>`
-                                }
-                            }
-                        )()}
-                    </td>
+                    <td>${getStatusMarkup(meeting, displayMeeting.isLive)}</td>
                     <td>
                         <div style="display: flex; gap: 1rem; justify-content: end">
-                            <button class="download-button" data-index="${i}" title="Download" aria-label="Download this meeting transcript">
+                            <button class="download-button" data-index="${i}" title="Download" aria-label="Download this meeting transcript" ${displayMeeting.isLive ? "disabled" : ""}>
                                 <img src="./icons/download.svg" alt="">
                             </button>
-                            <button class="post-button" data-index="${i}" title="${meeting.webhookPostStatus === "new" ? `Post webhook` : `Repost webhook`}" aria-label="${meeting.webhookPostStatus === "new" ? `` : ``}">
+                            <button class="post-button" data-index="${i}" title="${meeting.webhookPostStatus === "new" ? `Post webhook` : `Repost webhook`}" aria-label="${meeting.webhookPostStatus === "new" ? `` : ``}" ${displayMeeting.isLive ? "disabled" : ""}>
                                 ${meeting.webhookPostStatus === "new" ? `` : ``}
                                 <img src="./icons/webhook.svg" alt="">
                             </button>
                             &nbsp;
-                             <button class="delete-button" data-index="${i}" title="Delete" aria-label="Delete this meeting">
+                             <button class="delete-button" data-index="${i}" title="Delete" aria-label="Delete this meeting" ${displayMeeting.isLive ? "disabled" : ""}>
                                 <img src="./icons/delete.svg" alt="">
                             </button>
                         </div>
@@ -278,16 +274,27 @@ function loadMeetings() {
                 `
                     meetingsTable.appendChild(row)
 
+                    row.addEventListener("click", function (event) {
+                        const target = /** @type {HTMLElement | null} */ (event.target instanceof HTMLElement ? event.target : null)
+                        if (target?.closest("button") || target?.closest(".meeting-title")) {
+                            return
+                        }
+                        selectedMeetingKey = displayMeeting.key
+                        loadMeetings()
+                    })
+
                     // Add event listener to meeting title input
                     const meetingTitleInput = row.querySelector(".meeting-title")
-                    if (meetingTitleInput instanceof HTMLDivElement) {
+                    if (!displayMeeting.isLive && meetingTitleInput instanceof HTMLDivElement) {
                         meetingTitleInput.addEventListener("blur", function () {
                             const updatedMeeting = /** @type {Meeting} */ {
                                 ...meeting,
                                 meetingTitle: meetingTitleInput.innerText
                             }
-                            meetings[i] = updatedMeeting
-                            chrome.storage.local.set({ meetings: meetings }, function () {
+                            if (typeof i === "number" && resultLocal.meetings) {
+                                resultLocal.meetings[i] = updatedMeeting
+                            }
+                            chrome.storage.local.set({ meetings: resultLocal.meetings || [] }, function () {
                                 console.log("Meeting title updated")
                             })
                         })
@@ -295,7 +302,7 @@ function loadMeetings() {
 
                     // Add event listener to the webhook post button
                     const downloadButton = row.querySelector(".download-button")
-                    if (downloadButton instanceof HTMLButtonElement) {
+                    if (!displayMeeting.isLive && downloadButton instanceof HTMLButtonElement) {
                         downloadButton.addEventListener("click", function () {
                             // Send message to background script to download text file
                             const index = parseInt(downloadButton.getAttribute("data-index") ?? "-1")
@@ -319,7 +326,7 @@ function loadMeetings() {
 
                     // Add event listener to the webhook post button
                     const webhookPostButton = row.querySelector(".post-button")
-                    if (webhookPostButton instanceof HTMLButtonElement) {
+                    if (!displayMeeting.isLive && webhookPostButton instanceof HTMLButtonElement) {
                         webhookPostButton.addEventListener("click", function () {
                             chrome.storage.sync.get(["webhookUrl"], function (resultSyncUntyped) {
                                 const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
@@ -364,28 +371,212 @@ function loadMeetings() {
 
                     // Add event listener to the meeting delete button
                     const deleteButton = row.querySelector(".delete-button")
-                    if (deleteButton instanceof HTMLButtonElement) {
+                    if (!displayMeeting.isLive && deleteButton instanceof HTMLButtonElement) {
                         deleteButton.addEventListener("click", function () {
                             if (confirm("Delete this meeting?")) {
-                                meetings.splice(i, 1)
-                                chrome.storage.local.set({ meetings: meetings }, function () {
+                                if (typeof i === "number" && resultLocal.meetings) {
+                                    resultLocal.meetings.splice(i, 1)
+                                }
+                                chrome.storage.local.set({ meetings: resultLocal.meetings || [] }, function () {
                                     console.log("Meeting title updated")
                                 })
                             }
                         })
                     }
-                }
+                })
                 const meetingsTableContainer = document.querySelector("#meetings-table-container")
                 if (!isMeetingsTableExpanded && meetingsTableContainer && (meetingsTableContainer.clientHeight > 280)) {
                     meetingsTableContainer?.classList.add("fade-mask")
                     document.querySelector("#show-all")?.setAttribute("style", "display: block")
                 }
+
+                const selectedMeeting = displayMeetings.find(item => item.key === selectedMeetingKey) || displayMeetings[0]
+                renderMeetingLog(selectedMeeting)
             }
             else {
-                meetingsTable.innerHTML = `<tr><td colspan="4">Your next meeting will show up here</td></tr>`
+                selectedMeetingKey = ""
+                meetingsTable.innerHTML = `<tr><td colspan="5">Your next meeting will show up here</td></tr>`
+                if (meetingLogViewer instanceof HTMLDivElement) {
+                    meetingLogViewer.hidden = true
+                }
             }
         }
     })
+}
+
+/**
+ * @param {ResultLocal} resultLocal
+ * @returns {{ key: string, index: number | "live", isLive: boolean, meeting: Meeting }[]}
+ */
+function getDisplayMeetings(resultLocal) {
+    const meetings = resultLocal.meetings || []
+    const displayMeetings = []
+
+    if (resultLocal.meetingTabId && resultLocal.meetingTabId !== "processing" && resultLocal.meetingStartTimestamp && ((resultLocal.transcript?.length || 0) > 0 || Boolean(resultLocal.activeTranscriptBlock?.transcriptText) || (resultLocal.chatMessages?.length || 0) > 0)) {
+        displayMeetings.push({
+            key: "live",
+            index: "live",
+            isLive: true,
+            meeting: {
+                meetingSoftware: resultLocal.meetingSoftware || "Google Meet",
+                meetingTitle: resultLocal.meetingTitle || "Current meeting",
+                meetingStartTimestamp: resultLocal.meetingStartTimestamp,
+                meetingEndTimestamp: new Date().toISOString(),
+                transcript: getTranscriptWithActiveBlock(resultLocal.transcript || [], resultLocal.activeTranscriptBlock),
+                chatMessages: resultLocal.chatMessages || [],
+                webhookPostStatus: "new"
+            }
+        })
+    }
+
+    for (let i = meetings.length - 1; i >= 0; i--) {
+        displayMeetings.push({
+            key: `saved-${i}`,
+            index: i,
+            isLive: false,
+            meeting: meetings[i]
+        })
+    }
+
+    return displayMeetings
+}
+
+/**
+ * @param {TranscriptBlock[]} transcript
+ * @param {TranscriptBlock | null | undefined} activeTranscriptBlock
+ */
+function getTranscriptWithActiveBlock(transcript, activeTranscriptBlock) {
+    if (!activeTranscriptBlock || !activeTranscriptBlock.transcriptText) {
+        return transcript
+    }
+
+    const lastBlock = transcript[transcript.length - 1]
+    if (lastBlock &&
+        lastBlock.personName === activeTranscriptBlock.personName &&
+        lastBlock.timestamp === activeTranscriptBlock.timestamp &&
+        lastBlock.transcriptText === activeTranscriptBlock.transcriptText) {
+        return transcript
+    }
+
+    return [...transcript, activeTranscriptBlock]
+}
+
+/**
+ * @param {Meeting} meeting
+ * @param {boolean} isLive
+ */
+function getStatusMarkup(meeting, isLive) {
+    if (isLive) {
+        return `<span class="status-live">Live</span>`
+    }
+
+    switch (meeting.webhookPostStatus) {
+        case "successful":
+            return `<span class="status-success">Successful</span>`
+        case "failed":
+            return `<span class="status-failed">Failed</span>`
+        case "new":
+            return `<span class="status-new">New</span>`
+        default:
+            return `<span class="status-new">Unknown</span>`
+    }
+}
+
+/**
+ * @param {{ key: string, index: number | "live", isLive: boolean, meeting: Meeting }} displayMeeting
+ */
+function renderMeetingLog(displayMeeting) {
+    const meetingLogViewer = document.querySelector("#meeting-log-viewer")
+    const meetingLogTitle = document.querySelector("#meeting-log-title")
+    const meetingLogMeta = document.querySelector("#meeting-log-meta")
+    const meetingLogBody = document.querySelector("#meeting-log-body")
+
+    if (!(meetingLogViewer instanceof HTMLDivElement) || !(meetingLogTitle instanceof HTMLHeadingElement) || !(meetingLogMeta instanceof HTMLParagraphElement) || !(meetingLogBody instanceof HTMLDivElement)) {
+        return
+    }
+
+    const meeting = displayMeeting.meeting
+    meetingLogViewer.hidden = false
+    meetingLogTitle.textContent = meeting.meetingTitle || meeting.title || "Google Meet call"
+    meetingLogMeta.textContent = `${meeting.meetingSoftware || "Meeting"} • ${new Date(meeting.meetingStartTimestamp).toLocaleString()} • ${displayMeeting.isLive ? "Live now" : getDuration(meeting.meetingStartTimestamp, meeting.meetingEndTimestamp)}`
+    meetingLogBody.innerHTML = ""
+
+    const transcript = meeting.transcript || []
+    const chatMessages = meeting.chatMessages || []
+
+    if (transcript.length === 0 && chatMessages.length === 0) {
+        const empty = document.createElement("p")
+        empty.className = "log-empty"
+        empty.textContent = "No transcript or chat messages captured yet."
+        meetingLogBody.appendChild(empty)
+        return
+    }
+
+    if (transcript.length > 0) {
+        meetingLogBody.appendChild(createLogGroup("Transcript", transcript.map(block => ({
+            personName: block.personName,
+            timestamp: block.timestamp,
+            text: block.transcriptText
+        }))))
+    }
+
+    if (chatMessages.length > 0) {
+        meetingLogBody.appendChild(createLogGroup("Chat messages", chatMessages.map(block => ({
+            personName: block.personName,
+            timestamp: block.timestamp,
+            text: block.chatMessageText
+        }))))
+    }
+}
+
+/**
+ * @param {string} heading
+ * @param {{ personName: string, timestamp: string, text: string }[]} entries
+ */
+function createLogGroup(heading, entries) {
+    const group = document.createElement("div")
+    group.className = "log-group"
+
+    const headingElement = document.createElement("p")
+    headingElement.className = "log-heading"
+    headingElement.textContent = heading
+    group.appendChild(headingElement)
+
+    entries.forEach((entry) => {
+        const entryElement = document.createElement("div")
+        entryElement.className = "log-entry"
+
+        const meta = document.createElement("div")
+        meta.className = "log-entry-meta"
+
+        const speaker = document.createElement("span")
+        speaker.className = "log-entry-speaker"
+        speaker.textContent = entry.personName || "Speaker"
+
+        const timestamp = document.createElement("span")
+        timestamp.textContent = ` • ${new Date(entry.timestamp).toLocaleString()}`
+
+        const text = document.createElement("div")
+        text.className = "log-entry-text"
+        text.textContent = entry.text || ""
+
+        meta.appendChild(speaker)
+        meta.appendChild(timestamp)
+        entryElement.appendChild(meta)
+        entryElement.appendChild(text)
+        group.appendChild(entryElement)
+    })
+
+    return group
+}
+
+/**
+ * @param {string} value
+ */
+function escapeHTML(value) {
+    const div = document.createElement("div")
+    div.textContent = value
+    return div.innerHTML
 }
 
 // Format duration between two timestamps, specified in milliseconds elapsed since the epoch
