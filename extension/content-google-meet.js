@@ -13,6 +13,17 @@ const extensionStatusJSON_bug = {
 const reportErrorMessage = "There is a bug in TranscripTonic. Please report it at https://github.com/vivek-nexus/transcriptonic/issues"
 /** @type {MutationObserverInit} */
 const mutationConfig = { childList: true, attributes: true, subtree: true, characterData: true }
+const captionsContainerSelectors = [
+  `div[role="region"][aria-label="Captions"]`,
+  `div[role="region"][aria-label*="Caption"]`,
+  `div[role="region"][aria-label*="caption"]`,
+  ".iOzk7",
+  `div[role="region"][tabindex="0"]`
+]
+const captionSpeakerSelector = ".nMcdL.bj4p3b, .nMcdL"
+const captionTextSelector = ".ygicle.VbkSU, .ygicle"
+const captionSpeakerNameSelector = ".NWpY1d, .KcIKyf.jxFHg, .KcIKyf"
+const captionButtonSelector = `button[jsname="r8qRAd"], button[aria-label*="caption" i], button[aria-label*="자막"], button[aria-label*="字幕"]`
 
 // Name of the person attending the meeting
 let userName = "You"
@@ -160,10 +171,10 @@ function meetingRoutines(uiType) {
     // **** REGISTER TRANSCRIPT AND CHAT MESSAGES LISTENERS **** //
     // REGISTER TRANSCRIPT LISTENER
     // Wait for captions icon to be visible. When user is waiting in meeting lobbing for someone to let them in, the call end icon is visible, but the captions icon is still not visible.
-    waitForElement(captionsIconData.selector, captionsIconData.text)
+    waitForCaptionsButton(captionsIconData)
       .then(() => {
         // CRITICAL DOM DEPENDENCY
-        const captionsButton = selectElements(captionsIconData.selector, captionsIconData.text)[0]
+        const captionsButton = getCaptionsButton(captionsIconData)
 
         // Click captions icon for non manual operation modes. Async operation.
         chrome.storage.sync.get(["operationMode"], function (resultSyncUntyped) {
@@ -171,7 +182,7 @@ function meetingRoutines(uiType) {
           if (resultSync.operationMode === "manual") {
             console.log("Manual mode selected, leaving transcript off")
           }
-          else {
+          else if (captionsButton && !areCaptionsEnabled(captionsButton)) {
             captionsButton.click()
           }
         })
@@ -189,6 +200,7 @@ function meetingRoutines(uiType) {
 
           // Start observing the transcript element and chat messages element for configured mutations
           transcriptObserver.observe(transcriptTargetNode, mutationConfig)
+          watchCaptionsContainerReplacement(transcriptObserver, transcriptTargetNode)
 
           // Show confirmation message from extensionStatusJSON, once observation has started, based on operation mode
           chrome.storage.sync.get(["operationMode"], function (resultSyncUntyped) {
@@ -288,16 +300,27 @@ function meetingRoutines(uiType) {
  * @param {MutationRecord[]} mutationsList
  */
 function transcriptMutationCallback(mutationsList) {
+  /** @type {Set<Element>} */
+  const speakerBlocks = new Set()
+
+  mutationsList.forEach((mutation) => {
+    getCaptionSpeakerBlocksFromMutation(mutation).forEach((speakerBlock) => speakerBlocks.add(speakerBlock))
+  })
+
+  if (speakerBlocks.size > 0) {
+    speakerBlocks.forEach((speakerBlock) => {
+      const captionBlock = getCaptionBlockFromSpeakerBlock(speakerBlock)
+      if (captionBlock) {
+        processTranscriptBlock(captionBlock.personName, captionBlock.transcriptText, captionBlock.captionElement)
+      }
+    })
+    logTranscriptActivity()
+    return
+  }
+
   mutationsList.forEach((mutation) => {
     try {
-      const captionBlocks = getCaptionBlocksFromMutation(mutation)
-
-      if (captionBlocks.length > 0) {
-        captionBlocks.forEach((captionBlock) => {
-          processTranscriptBlock(captionBlock.personName, captionBlock.transcriptText, captionBlock.captionElement)
-        })
-      }
-      else if (mutation.type === "characterData") {
+      if (mutation.type === "characterData") {
         const mutationTargetElement = mutation.target.parentElement
         const transcriptUIBlocks = [...mutationTargetElement?.parentElement?.parentElement?.children || []]
         const isLastButSecondElement = transcriptUIBlocks[transcriptUIBlocks.length - 3] === mutationTargetElement?.parentElement ? true : false
@@ -328,12 +351,7 @@ function transcriptMutationCallback(mutationsList) {
       }
 
       // Logs to indicate that the extension is working
-      if (transcriptTextBuffer.length > 125) {
-        console.log(transcriptTextBuffer.slice(0, 50) + "   ...   " + transcriptTextBuffer.slice(-50))
-      }
-      else {
-        console.log(transcriptTextBuffer)
-      }
+      logTranscriptActivity()
     } catch (err) {
       console.error(err)
       if (!isTranscriptDomErrorCaptured && !hasMeetingEnded) {
@@ -414,6 +432,12 @@ function processTranscriptBlock(currentPersonName, currentTranscriptText, captio
     return
   }
 
+  const normalizedPersonName = normalizeCaptionText(currentPersonName)
+  const normalizedTranscriptText = normalizeCaptionText(currentTranscriptText)
+  if (!normalizedPersonName || !normalizedTranscriptText) {
+    return
+  }
+
   if (captionElement instanceof Element) {
     captionElement.setAttribute("style", "opacity:0.2")
     captionElement.querySelectorAll("*").forEach((item) => {
@@ -425,26 +449,26 @@ function processTranscriptBlock(currentPersonName, currentTranscriptText, captio
 
   // Starting fresh in a meeting or resume from no active transcript
   if (transcriptTextBuffer === "") {
-    personNameBuffer = currentPersonName
+    personNameBuffer = normalizedPersonName
     timestampBuffer = new Date().toISOString()
-    transcriptTextBuffer = currentTranscriptText
+    transcriptTextBuffer = normalizedTranscriptText
   }
   // Some prior transcript buffer exists
   else {
     // New person started speaking
-    if (personNameBuffer !== currentPersonName) {
+    if (personNameBuffer !== normalizedPersonName) {
       // Push previous person's transcript as a block
       pushBufferToTranscript()
 
       // Update buffers for next mutation and store transcript block timestamp
-      personNameBuffer = currentPersonName
+      personNameBuffer = normalizedPersonName
       timestampBuffer = new Date().toISOString()
-      transcriptTextBuffer = currentTranscriptText
+      transcriptTextBuffer = normalizedTranscriptText
     }
     // Same person speaking more
     else {
       // When the same person speaks for more than 30 min (approx), Meet drops very long transcript for current person and starts over, which is detected by current transcript string being significantly smaller than the previous one
-      if ((currentTranscriptText.length - transcriptTextBuffer.length) < -250) {
+      if ((normalizedTranscriptText.length - transcriptTextBuffer.length) < -250) {
         // Push the long transcript
         pushBufferToTranscript()
 
@@ -453,7 +477,12 @@ function processTranscriptBlock(currentPersonName, currentTranscriptText, captio
       }
 
       // Update buffers for next mutation
-      transcriptTextBuffer = currentTranscriptText
+      if (normalizedTranscriptText !== transcriptTextBuffer) {
+        transcriptTextBuffer = normalizedTranscriptText
+      }
+      else {
+        return
+      }
     }
   }
 
@@ -461,18 +490,36 @@ function processTranscriptBlock(currentPersonName, currentTranscriptText, captio
 }
 
 /**
- * @description Extracts caption blocks from the current Google Meet captions DOM.
+ * @description Extracts caption speaker blocks from the current Google Meet captions DOM.
  * @param {MutationRecord} mutation
- * @returns {{ personName: string, transcriptText: string, captionElement: Element }[]}
+ * @returns {Element[]}
  */
-function getCaptionBlocksFromMutation(mutation) {
+function getCaptionSpeakerBlocksFromMutation(mutation) {
   /** @type {Element[]} */
   const speakerBlocks = []
-  /** @type {{ personName: string, transcriptText: string, captionElement: Element }[]} */
-  const captionBlocks = []
   const addSpeakerBlock = (node) => {
     const element = node instanceof Element ? node : node.parentElement
-    const speakerBlock = element?.closest(".nMcdL.bj4p3b")
+    if (!element) {
+      return
+    }
+
+    const closestSpeakerBlock = element.closest(captionSpeakerSelector)
+    if (closestSpeakerBlock && !speakerBlocks.includes(closestSpeakerBlock)) {
+      speakerBlocks.push(closestSpeakerBlock)
+      return
+    }
+
+    element.querySelectorAll(captionSpeakerSelector).forEach((speakerBlock) => {
+      if (!speakerBlocks.includes(speakerBlock)) {
+        speakerBlocks.push(speakerBlock)
+      }
+    })
+  }
+
+  const captionsContainer = getCaptionsContainer()
+  if (captionsContainer?.contains(mutation.target)) {
+    const speakerBlocksInContainer = captionsContainer.querySelectorAll(captionSpeakerSelector)
+    const speakerBlock = speakerBlocksInContainer[speakerBlocksInContainer.length - 1]
     if (speakerBlock && !speakerBlocks.includes(speakerBlock)) {
       speakerBlocks.push(speakerBlock)
     }
@@ -481,21 +528,53 @@ function getCaptionBlocksFromMutation(mutation) {
   addSpeakerBlock(mutation.target)
   mutation.addedNodes.forEach(addSpeakerBlock)
 
-  speakerBlocks.forEach((speakerBlock) => {
-    const personName = speakerBlock.querySelector(".NWpY1d, .KcIKyf.jxFHg")?.textContent?.trim()
-    const captionElement = speakerBlock.querySelector(".ygicle.VbkSU")
-    const transcriptText = captionElement?.textContent?.trim()
+  return speakerBlocks
+}
 
-    if (personName && transcriptText && captionElement) {
-      captionBlocks.push({
-        personName,
-        transcriptText,
-        captionElement
-      })
+/**
+ * @param {Element} speakerBlock
+ * @returns {{ personName: string, transcriptText: string, captionElement: Element } | null}
+ */
+function getCaptionBlockFromSpeakerBlock(speakerBlock) {
+  const personName = speakerBlock.querySelector(captionSpeakerNameSelector)?.textContent?.trim()
+  const captionElement = speakerBlock.querySelector(captionTextSelector) || getLastTextElement(speakerBlock)
+  const transcriptText = captionElement?.textContent?.trim()
+
+  if (personName && transcriptText && captionElement) {
+    return {
+      personName,
+      transcriptText,
+      captionElement
     }
-  })
+  }
 
-  return captionBlocks
+  return null
+}
+
+/**
+ * @param {Element} root
+ * @returns {Element | null}
+ */
+function getLastTextElement(root) {
+  const candidates = Array.from(root.querySelectorAll("div, span"))
+    .filter((element) => normalizeCaptionText(element.textContent || "").length > 0)
+  return candidates[candidates.length - 1] || null
+}
+
+/**
+ * @param {string} value
+ */
+function normalizeCaptionText(value) {
+  return value.replace(/\s+/g, " ").trim()
+}
+
+function logTranscriptActivity() {
+  if (transcriptTextBuffer.length > 125) {
+    console.log(transcriptTextBuffer.slice(0, 50) + "   ...   " + transcriptTextBuffer.slice(-50))
+  }
+  else {
+    console.log(transcriptTextBuffer)
+  }
 }
 
 /**
@@ -690,24 +769,85 @@ async function waitForElement(selector, text) {
 }
 
 /**
+ * @param {{ selector: string, text: string }} captionsIconData
+ */
+async function waitForCaptionsButton(captionsIconData) {
+  while (!getCaptionsButton(captionsIconData)) {
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+  }
+}
+
+/**
+ * @param {{ selector: string, text: string }} captionsIconData
+ * @returns {HTMLElement | null}
+ */
+function getCaptionsButton(captionsIconData) {
+  const semanticButton = document.querySelector(captionButtonSelector)
+  if (semanticButton instanceof HTMLElement) {
+    return semanticButton
+  }
+
+  const icon = selectElements(captionsIconData.selector, captionsIconData.text)[0]
+  return icon instanceof HTMLElement ? icon : null
+}
+
+/**
+ * @param {HTMLElement} captionsButton
+ */
+function areCaptionsEnabled(captionsButton) {
+  const ariaLabel = captionsButton.getAttribute("aria-label") || ""
+  const pressed = captionsButton.getAttribute("aria-pressed")
+  if (pressed === "true") {
+    return true
+  }
+  if (/off|enable|turn on|시작|켜기/i.test(ariaLabel)) {
+    return false
+  }
+  if (/on|disable|turn off|끄기/i.test(ariaLabel)) {
+    return true
+  }
+  return Boolean(getCaptionsContainer())
+}
+
+function getCaptionsContainer() {
+  for (const selector of captionsContainerSelectors) {
+    const element = document.querySelector(selector)
+    if (element) {
+      return element
+    }
+  }
+  return null
+}
+
+/**
  * @description Waits for the live Google Meet captions region. Tries the current explicit captions region first and keeps older selectors as fallbacks.
  */
 async function waitForCaptionsContainer() {
-  const selectors = [
-    `div[role="region"][aria-label="Captions"]`,
-    ".iOzk7",
-    `div[role="region"][tabindex="0"]`
-  ]
-
   while (true) {
-    for (const selector of selectors) {
-      const element = document.querySelector(selector)
-      if (element) {
-        return element
-      }
+    const element = getCaptionsContainer()
+    if (element) {
+      return element
     }
     await new Promise((resolve) => requestAnimationFrame(resolve))
   }
+}
+
+/**
+ * @param {MutationObserver} transcriptObserver
+ * @param {Element} initialTargetNode
+ */
+function watchCaptionsContainerReplacement(transcriptObserver, initialTargetNode) {
+  let observedTargetNode = initialTargetNode
+  const replacementObserver = new MutationObserver(() => {
+    const latestTargetNode = getCaptionsContainer()
+    if (latestTargetNode && latestTargetNode !== observedTargetNode) {
+      observedTargetNode = latestTargetNode
+      transcriptObserver.disconnect()
+      transcriptObserver.observe(latestTargetNode, mutationConfig)
+    }
+  })
+
+  replacementObserver.observe(document.body, { childList: true, subtree: true })
 }
 
 /**
