@@ -95,25 +95,33 @@ checkExtensionStatus().finally(() => {
 
   // Enable extension functions only if status is 200
   if (extensionStatusJSON.status === 200) {
-    // NON CRITICAL DOM DEPENDENCY. Attempt to get username before meeting starts. Abort interval if valid username is found or if meeting starts and default to "You".
-    waitForElement(".awLEm").then(() => {
-      // Poll the element until the textContent loads from network or until meeting starts
-      const captureUserNameInterval = setInterval(() => {
-        if (!hasMeetingStarted) {
-          const capturedUserName = document.querySelector(".awLEm")?.textContent
-          if (capturedUserName) {
-            userName = capturedUserName
+    chrome.storage.sync.get(["wantGoogleMeet"], function (resultSyncUntyped) {
+      const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+      if (resultSync.wantGoogleMeet === false) {
+        console.log("Google Meet transcripts disabled")
+        return
+      }
+
+      // NON CRITICAL DOM DEPENDENCY. Attempt to get username before meeting starts. Abort interval if valid username is found or if meeting starts and default to "You".
+      waitForElement(".awLEm").then(() => {
+        // Poll the element until the textContent loads from network or until meeting starts
+        const captureUserNameInterval = setInterval(() => {
+          if (!hasMeetingStarted) {
+            const capturedUserName = document.querySelector(".awLEm")?.textContent
+            if (capturedUserName) {
+              userName = capturedUserName
+              clearInterval(captureUserNameInterval)
+            }
+          }
+          else {
             clearInterval(captureUserNameInterval)
           }
-        }
-        else {
-          clearInterval(captureUserNameInterval)
-        }
-      }, 100)
-    })
+        }, 100)
+      })
 
-    // Meet UI post July/Aug 2024
-    meetingRoutines(2)
+      // Meet UI post July/Aug 2024
+      meetingRoutines(2)
+    })
   }
   else {
     // Show downtime message as extension status is 400

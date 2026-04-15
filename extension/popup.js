@@ -65,7 +65,7 @@ window.onload = function () {
       }
       chrome.runtime.sendMessage(message, (responseUntyped) => {
         const response = /** @type {ExtensionResponse} */ (responseUntyped)
-        if (response.success) {
+        if (response?.success) {
           switch (platform) {
             case "google_meet":
               chrome.storage.sync.set({ wantGoogleMeet: element.checked }, function () { })
@@ -82,7 +82,7 @@ window.onload = function () {
         }
         else {
           element.checked = !element.checked // Revert on failure
-          console.error(`Failed to toggle ${platform}:`, response.message)
+          console.error(`Failed to toggle ${platform}:`, response?.message)
         }
       })
     })

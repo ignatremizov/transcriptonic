@@ -802,6 +802,11 @@ function requestPlatformPermission(platform) {
     return new Promise((resolve, reject) => {
         const config = PLATFORM_CONFIGS[platform]
 
+        if (!supportsDynamicContentScripts()) {
+            resolve("Permissions managed by manifest")
+            return
+        }
+
         chrome.permissions.request({
             origins: config.matches,
             permissions: ["notifications", "declarativeNetRequestWithHostAccess"]
@@ -828,6 +833,13 @@ function getContentScriptStatus(platform) {
 
         if (!config) {
             reject(`Invalid platform: ${platform}`)
+            return
+        }
+
+        if (!supportsDynamicContentScripts()) {
+            getStoredPlatformPreference(platform).then((status) => {
+                resolve(status)
+            })
             return
         }
 
@@ -878,6 +890,11 @@ function getPermissionStatus(platform) {
 function registerContentScript(platform, showNotification = true) {
     return new Promise((resolve, reject) => {
         const config = PLATFORM_CONFIGS[platform]
+
+        if (!supportsDynamicContentScripts()) {
+            resolve("Content script managed by manifest")
+            return
+        }
 
         chrome.permissions.contains({ origins: config.matches }).then((hasPermission) => {
             if (hasPermission) {
@@ -930,6 +947,10 @@ function registerContentScript(platform, showNotification = true) {
 }
 
 function reRegisterContentScripts() {
+    if (!supportsDynamicContentScripts()) {
+        return
+    }
+
     chrome.storage.sync.get(["wantGoogleMeet", "wantTeams", "wantZoom"], function (resultSyncUntyped) {
         const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
 
@@ -962,6 +983,11 @@ function reRegisterContentScripts() {
 
 function registerZoomRedirect() {
     return new Promise((resolve, reject) => {
+        if (!chrome.declarativeNetRequest) {
+            resolve("Zoom redirect managed by browser")
+            return
+        }
+
         // Check if we have the host permission required for the redirect
         chrome.permissions.contains({
             origins: ["https://*.zoom.us/*"]
@@ -1004,6 +1030,11 @@ function deregisterContentScript(platform) {
     return new Promise((resolve, reject) => {
         const config = PLATFORM_CONFIGS[platform]
 
+        if (!supportsDynamicContentScripts()) {
+            resolve("Content script managed by manifest")
+            return
+        }
+
         chrome.scripting
             .getRegisteredContentScripts()
             .then((scripts) => {
@@ -1031,6 +1062,11 @@ function deregisterContentScript(platform) {
 
 function deregisterZoomRedirect() {
     return new Promise((resolve, reject) => {
+        if (!chrome.declarativeNetRequest) {
+            resolve("Zoom redirect managed by browser")
+            return
+        }
+
         const rulesetId = "ruleset_1"
 
         chrome.declarativeNetRequest.getEnabledRulesets().then((enabledRulesets) => {
@@ -1050,6 +1086,28 @@ function deregisterZoomRedirect() {
                     reject("Failed to disable redirect ruleset")
                 })
             }
+        })
+    })
+}
+
+function supportsDynamicContentScripts() {
+    return Boolean(chrome.scripting?.getRegisteredContentScripts && chrome.scripting?.registerContentScripts && chrome.scripting?.unregisterContentScripts)
+}
+
+/**
+ * @param {Platform} platform
+ */
+function getStoredPlatformPreference(platform) {
+    return new Promise((resolve) => {
+        const keyByPlatform = {
+            google_meet: "wantGoogleMeet",
+            teams: "wantTeams",
+            zoom: "wantZoom"
+        }
+
+        const key = keyByPlatform[platform]
+        chrome.storage.sync.get([key], function (resultSync) {
+            resolve(resultSync[key] === false ? "Disabled" : "Enabled")
         })
     })
 }
