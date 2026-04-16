@@ -128,7 +128,7 @@ function teams() {
 
       // Fire captions shortcut based on operation mode. Async operation.
       chrome.storage.sync.get(["operationMode"], function (resultSyncUntyped) {
-        const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+        const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
         if (resultSync.operationMode === "manual") {
           console.log("Manual mode selected, leaving transcript off")
           showNotification({ status: 400, message: "<strong>TranscripTonic is not running</strong> <br /> Turn on captions, if needed (More > Language > Captions)" })

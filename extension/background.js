@@ -294,7 +294,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
     // Set defaults values
     chrome.storage.sync.get(["autoPostWebhookAfterMeeting", "autoDownloadFileAfterMeeting", "operationMode", "webhookBodyType", "webhookUrl", "wantGoogleMeet", "wantTeams", "wantZoom"], function (resultSyncUntyped) {
-        const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+        const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
 
         chrome.storage.sync.set({
             autoPostWebhookAfterMeeting: resultSync.autoPostWebhookAfterMeeting === false ? false : true,
@@ -318,7 +318,7 @@ function processLastMeeting() {
                 chrome.storage.local.get(["meetings"], function (resultLocalUntyped) {
                     const resultLocal = /** @type {ResultLocal} */ (resultLocalUntyped)
                     chrome.storage.sync.get(["webhookUrl", "autoPostWebhookAfterMeeting", "autoDownloadFileAfterMeeting"], function (resultSyncUntyped) {
-                        const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+                        const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
 
                         // Create an array of promises to execute in parallel
                         /** @type {Promise<any>[]} */
@@ -574,7 +574,7 @@ function postTranscriptToWebhook(index) {
         chrome.storage.local.get(["meetings"], function (resultLocalUntyped) {
             const resultLocal = /** @type {ResultLocal} */ (resultLocalUntyped)
             chrome.storage.sync.get(["webhookUrl", "webhookBodyType"], function (resultSyncUntyped) {
-                const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+                const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
 
                 if (resultSync.webhookUrl) {
                     if (resultLocal.meetings && resultLocal.meetings[index]) {
@@ -955,7 +955,7 @@ function reRegisterContentScripts() {
     }
 
     chrome.storage.sync.get(["wantGoogleMeet", "wantTeams", "wantZoom"], function (resultSyncUntyped) {
-        const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+        const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
 
         Promise.all([
             getPermissionStatus("google_meet"),

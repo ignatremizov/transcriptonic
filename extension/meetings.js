@@ -71,7 +71,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Load saved webhook URL, auto-post setting, and webhook body type
         chrome.storage.sync.get(["webhookUrl", "autoPostWebhookAfterMeeting", "autoDownloadFileAfterMeeting", "webhookBodyType"], function (resultSyncUntyped) {
-            const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+            const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
 
             if (resultSync.webhookUrl) {
                 webhookUrlInput.value = resultSync.webhookUrl
@@ -329,7 +329,7 @@ function loadMeetings() {
                     if (!displayMeeting.isLive && webhookPostButton instanceof HTMLButtonElement) {
                         webhookPostButton.addEventListener("click", function () {
                             chrome.storage.sync.get(["webhookUrl"], function (resultSyncUntyped) {
-                                const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+                                const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
                                 if (resultSync.webhookUrl) {
                                     // Request runtime permission for the webhook URL. Needed for cases when user signs on a new browser—webhook URL and other sync variables are available, but runtime permissions will be missing.
                                     requestWebhookAndNotificationPermission(resultSync.webhookUrl).then(() => {

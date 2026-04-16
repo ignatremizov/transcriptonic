@@ -96,7 +96,7 @@ checkExtensionStatus().finally(() => {
   // Enable extension functions only if status is 200
   if (extensionStatusJSON.status === 200) {
     chrome.storage.sync.get(["wantGoogleMeet"], function (resultSyncUntyped) {
-      const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+      const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
       if (resultSync.wantGoogleMeet === false) {
         console.log("Google Meet transcripts disabled")
         return
@@ -186,7 +186,7 @@ function meetingRoutines(uiType) {
 
         // Click captions icon for non manual operation modes. Async operation.
         chrome.storage.sync.get(["operationMode"], function (resultSyncUntyped) {
-          const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+          const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
           if (resultSync.operationMode === "manual") {
             console.log("Manual mode selected, leaving transcript off")
           }
@@ -212,7 +212,7 @@ function meetingRoutines(uiType) {
 
           // Show confirmation message from extensionStatusJSON, once observation has started, based on operation mode
           chrome.storage.sync.get(["operationMode"], function (resultSyncUntyped) {
-            const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+            const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
             if (resultSync.operationMode === "manual") {
               showNotification({ status: 400, message: "<strong>TranscripTonic is not running</strong> <br /> Turn on captions using the CC icon, if needed" })
             }

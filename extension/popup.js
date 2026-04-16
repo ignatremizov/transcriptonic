@@ -26,7 +26,7 @@ window.onload = function () {
   }
 
   chrome.storage.sync.get(["operationMode", "wantGoogleMeet", "wantTeams", "wantZoom"], function (resultSyncUntyped) {
-    const resultSync = /** @type {ResultSync} */ (resultSyncUntyped)
+    const resultSync = /** @type {ResultSync} */ (resultSyncUntyped || {})
 
     chrome.storage.sync.set({
       operationMode: resultSync.operationMode === "manual" ? "manual" : "auto",
