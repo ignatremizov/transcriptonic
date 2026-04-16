@@ -443,8 +443,6 @@ function processTranscriptBlock(currentPersonName, currentTranscriptText, captio
     return
   }
 
-  dimCaptionElement(captionElement)
-
   // Starting fresh in a meeting or resume from no active transcript
   if (transcriptTextBuffer === "") {
     personNameBuffer = normalizedPersonName
@@ -564,22 +562,6 @@ function getLastTextElement(root) {
  */
 function normalizeCaptionText(value) {
   return value.replace(/\s+/g, " ").trim()
-}
-
-/**
- * @param {Element | undefined | null} captionElement
- */
-function dimCaptionElement(captionElement) {
-  if (!(captionElement instanceof HTMLElement)) {
-    return
-  }
-
-  if (captionElement.dataset.transcriptonicDimmed === "true") {
-    return
-  }
-
-  captionElement.dataset.transcriptonicDimmed = "true"
-  captionElement.style.opacity = "0.2"
 }
 
 /**
