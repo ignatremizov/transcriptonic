@@ -14,15 +14,17 @@
 
         body {
             font-family: "TASA Explorer", sans-serif;
-            padding: 1.5rem 3rem;
-            color: #C0C0C0;
+            padding: 1rem 1.5rem 2rem;
+            margin: 0;
+            color: #e6edf2;
             background: #071f29;
             font-size: 1rem;
+            line-height: 1.45;
             accent-color: #2A9ACA;
         }
 
         h1 {
-            margin: 0.5rem 0rem 1.5rem 0rem;
+            margin: 0 0 1rem;
         }
 
         .grid-container {
@@ -43,12 +45,12 @@
         }
 
         .card {
-            /* grid-column: 1; */
-            background: rgba(255, 255, 255, 0.1);
-            padding: 1.5rem 0rem;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 1rem 0rem;
             border-radius: 8px;
             margin-bottom: 1rem;
             container-type: inline-size;
+            border: 1px solid rgba(89, 150, 179, 0.28);
         }
 
         h2 {
@@ -82,10 +84,10 @@
         }
 
         .webhook-header {
-            padding: 1rem 1.5rem;
-            background: #2a9aca1a;
-            margin-bottom: 1.5rem;
-            margin-top: -1.5rem;
+            padding: 0.85rem 1rem;
+            background: rgba(42, 154, 202, 0.14);
+            margin-bottom: 1rem;
+            margin-top: -1rem;
 
             p {
                 margin: 0;
@@ -93,16 +95,16 @@
         }
 
         .form-field {
-            padding: 0px 1.5rem;
+            padding: 0px 1rem;
         }
 
 
         .form-field:not(:last-of-type) {
-            margin-bottom: 2rem;
+            margin-bottom: 1.25rem;
         }
 
         hr {
-            margin: 1.5rem 0rem;
+            margin: 1rem 0rem;
             border: 1px solid #2a9aca33;
         }
 
@@ -119,8 +121,8 @@
 
         .sub-text:not(p) {
             font-weight: normal;
-            color: #a0a0a0;
-            font-size: small;
+            color: #bdd0da;
+            font-size: 0.95rem;
         }
 
         input[type="url"] {
@@ -129,7 +131,7 @@
             border: 1px solid #2A9ACA;
             border-radius: 4px 0px 0px 4px;
             background: rgba(255, 255, 255, 0.1);
-            color: #C0C0C0;
+            color: #f2f7fa;
             font-family: "TASA Explorer", sans-serif;
             box-sizing: border-box;
         }
@@ -166,9 +168,9 @@
 
         button {
             background: #2A9ACA;
-            color: #071f29;
+            color: #05202b;
             border: none;
-            padding: 0.5rem 1rem;
+            padding: 0.55rem 0.95rem;
             border-radius: 4px;
             font-family: "TASA Explorer", sans-serif;
             font-weight: bold;
@@ -205,9 +207,9 @@
         .code-block {
             margin: 1rem 0rem;
             overflow-x: auto;
-            padding: 1rem;
+            padding: 0.85rem 1rem;
             border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.07);
             line-height: 1.5;
         }
 
@@ -227,7 +229,7 @@
             color: #2A9ACA;
             border: 1px solid #2A9ACA;
             margin: 1rem 0;
-            padding: 0.25rem 0.5rem;
+            padding: 0.4rem 0.65rem;
             display: flex;
             gap: 0.25rem;
             align-items: center;
@@ -240,27 +242,35 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            background: #ffffff1a;
+            background: rgba(255, 255, 255, 0.08);
             border-radius: 8px;
+            overflow: hidden;
+            table-layout: fixed;
+            border: 1px solid rgba(89, 150, 179, 0.28);
         }
 
         th,
         td {
-            padding: 1rem 1.5rem;
+            padding: 0.7rem 1rem;
             text-align: left;
             border-bottom: 1px solid #2a9aca33;
+            vertical-align: top;
         }
 
         th {
-            background: #2a9aca1a;
+            background: rgba(42, 154, 202, 0.16);
             font-weight: bold;
+            color: #d6e7ef;
+            font-size: 0.95rem;
         }
 
         .meeting-title {
             text-decoration: underline #a0a0a0;
             text-underline-offset: 6px;
-            padding: 0.15rem;
+            padding: 0.1rem 0;
             border-radius: 0.25rem;
+            color: #f3f8fb;
+            overflow-wrap: anywhere;
         }
 
         .meeting-title:hover {
@@ -269,22 +279,22 @@
         }
 
         .status-success {
-            color: #4CAF50;
+            color: #86d993;
             font-weight: bold;
         }
 
         .status-failed {
-            color: #f44336;
+            color: #ff8a80;
             font-weight: bold
         }
 
         .status-new {
-            color: #FFA726;
+            color: #ffd180;
             font-weight: bold
         }
 
         .status-live {
-            color: #2A9ACA;
+            color: #7dcdf0;
             font-weight: bold;
         }
 
@@ -292,8 +302,12 @@
             cursor: pointer;
         }
 
+        #meetings-table tr:hover {
+            background: rgba(42, 154, 202, 0.08);
+        }
+
         #meetings-table tr.selected-meeting {
-            background: #2a9aca1a;
+            background: rgba(42, 154, 202, 0.14);
         }
 
         .download-button,
@@ -306,16 +320,16 @@
             display: flex;
             flex-direction: column;
             justify-content: end;
-            font-size: smaller;
+            font-size: 0.95rem;
         }
 
         .card-heading {
-            margin: 0rem 1.5rem 1.25rem 1.5rem;
+            margin: 0rem 1rem 0.9rem 1rem;
             font-weight: bold;
         }
 
         .integration-card {
-            padding: 0rem 1.5rem;
+            padding: 0rem 1rem;
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 0.75rem;
@@ -328,7 +342,7 @@
         }
 
         .integration-guide {
-            padding: 0.5rem;
+            padding: 0.6rem 0.7rem;
             background: transparent;
             border: 1px solid #2a9aca88;
             border-radius: 0.5rem;
@@ -365,16 +379,16 @@
         }
 
         .meeting-log-viewer {
-            margin-top: 1.5rem;
-            background: #ffffff1a;
+            margin-top: 1rem;
+            background: rgba(255, 255, 255, 0.08);
             border: 1px solid #2a9aca33;
             border-radius: 8px;
             overflow: hidden;
         }
 
         .meeting-log-header {
-            padding: 1rem 1.5rem;
-            background: #2a9aca1a;
+            padding: 0.85rem 1rem;
+            background: rgba(42, 154, 202, 0.14);
         }
 
         .meeting-log-header h3 {
@@ -382,24 +396,24 @@
         }
 
         .meeting-log-meta {
-            margin: 0.25rem 0 0 0;
-            color: #a0a0a0;
-            font-size: small;
+            margin: 0.2rem 0 0 0;
+            color: #c0d5df;
+            font-size: 0.95rem;
         }
 
         .meeting-log-body {
-            max-height: 32rem;
+            max-height: 40rem;
             overflow-y: auto;
-            padding: 1rem 1.5rem;
+            padding: 0.85rem 1rem;
         }
 
         .log-empty {
-            color: #a0a0a0;
+            color: #c0d5df;
             margin: 0;
         }
 
         .log-group {
-            margin-bottom: 1.25rem;
+            margin-bottom: 0.9rem;
         }
 
         .log-group:last-child {
@@ -407,14 +421,14 @@
         }
 
         .log-heading {
-            color: #2A9ACA;
+            color: #7dcdf0;
             font-weight: bold;
-            margin: 0 0 0.5rem 0;
+            margin: 0 0 0.4rem 0;
         }
 
         .log-entry {
-            padding: 0.75rem 0;
-            border-bottom: 1px solid #2a9aca33;
+            padding: 0.55rem 0;
+            border-bottom: 1px solid rgba(89, 150, 179, 0.22);
         }
 
         .log-entry:last-child {
@@ -422,23 +436,40 @@
         }
 
         .log-entry-meta {
-            color: #a0a0a0;
-            font-size: small;
-            margin-bottom: 0.35rem;
+            color: #c0d5df;
+            font-size: 0.9rem;
+            margin-bottom: 0.2rem;
         }
 
         .log-entry-speaker {
-            color: #C0C0C0;
+            color: #f3f8fb;
             font-weight: bold;
         }
 
         .log-entry-text {
             white-space: pre-wrap;
-            line-height: 1.45;
+            line-height: 1.4;
+            color: #edf5f9;
+            overflow-wrap: anywhere;
         }
 
         section {
-            margin-bottom: 5rem;
+            margin-bottom: 2.25rem;
+        }
+
+        @media screen and (max-width: 900px) {
+            body {
+                padding: 1rem;
+            }
+
+            th,
+            td {
+                padding: 0.65rem 0.75rem;
+            }
+
+            .meeting-log-body {
+                max-height: none;
+            }
         }
     </style>
 </head>
@@ -446,7 +477,7 @@
 <body>
 
 
-    <div style="margin: 0px auto; max-width: 1440px;">
+    <div style="margin: 0px auto; max-width: 1360px;">
         <h1>TranscripTonic</h1>
 
         <section id="last-10-meetings">
