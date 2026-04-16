@@ -12,7 +12,7 @@ const extensionStatusJSON_bug = {
 
 const reportErrorMessage = "There is a bug in TranscripTonic. Please report it at https://github.com/vivek-nexus/transcriptonic/issues"
 /** @type {MutationObserverInit} */
-const mutationConfig = { childList: true, attributes: true, subtree: true, characterData: true }
+const mutationConfig = { childList: true, subtree: true, characterData: true }
 const captionsContainerSelectors = [
   `div[role="region"][aria-label="Captions"]`,
   `div[role="region"][aria-label*="Caption"]`,
@@ -322,7 +322,6 @@ function transcriptMutationCallback(mutationsList) {
         processTranscriptBlock(captionBlock.personName, captionBlock.transcriptText, captionBlock.captionElement)
       }
     })
-    logTranscriptActivity()
     return
   }
 
@@ -358,8 +357,6 @@ function transcriptMutationCallback(mutationsList) {
         }
       }
 
-      // Logs to indicate that the extension is working
-      logTranscriptActivity()
     } catch (err) {
       console.error(err)
       if (!isTranscriptDomErrorCaptured && !hasMeetingEnded) {
@@ -446,14 +443,7 @@ function processTranscriptBlock(currentPersonName, currentTranscriptText, captio
     return
   }
 
-  if (captionElement instanceof Element) {
-    captionElement.setAttribute("style", "opacity:0.2")
-    captionElement.querySelectorAll("*").forEach((item) => {
-      if (item instanceof HTMLElement) {
-        item.setAttribute("style", "opacity:0.2")
-      }
-    })
-  }
+  dimCaptionElement(captionElement)
 
   // Starting fresh in a meeting or resume from no active transcript
   if (transcriptTextBuffer === "") {
@@ -576,13 +566,20 @@ function normalizeCaptionText(value) {
   return value.replace(/\s+/g, " ").trim()
 }
 
-function logTranscriptActivity() {
-  if (transcriptTextBuffer.length > 125) {
-    console.log(transcriptTextBuffer.slice(0, 50) + "   ...   " + transcriptTextBuffer.slice(-50))
+/**
+ * @param {Element | undefined | null} captionElement
+ */
+function dimCaptionElement(captionElement) {
+  if (!(captionElement instanceof HTMLElement)) {
+    return
   }
-  else {
-    console.log(transcriptTextBuffer)
+
+  if (captionElement.dataset.transcriptonicDimmed === "true") {
+    return
   }
+
+  captionElement.dataset.transcriptonicDimmed = "true"
+  captionElement.style.opacity = "0.2"
 }
 
 /**
