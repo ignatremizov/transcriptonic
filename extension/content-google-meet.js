@@ -33,12 +33,9 @@ let userName = "You"
 let transcript = []
 
 // Buffer variables to dump values, which get pushed to transcript array as transcript blocks, at defined conditions
-/**
-   * @type {HTMLElement | null}
-   */
-let transcriptTargetBuffer
 let personNameBuffer = "", transcriptTextBuffer = "", timestampBuffer = ""
 let lastActiveTranscriptSaveAt = 0
+let pulseStatusTimeoutId = 0
 
 // Chat messages array that holds one or more chat messages of the meeting
 /** @type {ChatMessage[]} */
@@ -311,21 +308,21 @@ function transcriptMutationCallback(mutationsList) {
   /** @type {Set<Element>} */
   const speakerBlocks = new Set()
 
-  mutationsList.forEach((mutation) => {
+  for (const mutation of mutationsList) {
     getCaptionSpeakerBlocksFromMutation(mutation).forEach((speakerBlock) => speakerBlocks.add(speakerBlock))
-  })
+  }
 
   if (speakerBlocks.size > 0) {
     speakerBlocks.forEach((speakerBlock) => {
       const captionBlock = getCaptionBlockFromSpeakerBlock(speakerBlock)
       if (captionBlock) {
-        processTranscriptBlock(captionBlock.personName, captionBlock.transcriptText, captionBlock.captionElement)
+        processTranscriptBlock(captionBlock.personName, captionBlock.transcriptText)
       }
     })
     return
   }
 
-  mutationsList.forEach((mutation) => {
+  for (const mutation of mutationsList) {
     try {
       if (mutation.type === "characterData") {
         const mutationTargetElement = mutation.target.parentElement
@@ -338,7 +335,7 @@ function transcriptMutationCallback(mutationsList) {
           const currentTranscriptText = mutationTargetElement?.textContent
 
           if (currentPersonName && currentTranscriptText) {
-            processTranscriptBlock(currentPersonName, currentTranscriptText, transcriptUIBlocks[transcriptUIBlocks.length - 3])
+            processTranscriptBlock(currentPersonName, currentTranscriptText)
           }
           // No people found in transcript DOM
           else {
@@ -367,7 +364,7 @@ function transcriptMutationCallback(mutationsList) {
       }
       isTranscriptDomErrorCaptured = true
     }
-  })
+  }
 }
 
 /**
@@ -375,45 +372,47 @@ function transcriptMutationCallback(mutationsList) {
  * @param {MutationRecord[]} mutationsList
  */
 function chatMessagesMutationCallback(mutationsList) {
-  mutationsList.forEach(() => {
-    try {
+  if (mutationsList.length === 0) {
+    return
+  }
+
+  try {
+    // CRITICAL DOM DEPENDENCY
+    const chatMessagesElement = document.querySelector(`div[aria-live="polite"].Ge9Kpc`)
+    // Attempt to parse messages only if at least one message exists
+    if (chatMessagesElement && chatMessagesElement.children.length > 0) {
+      // CRITICAL DOM DEPENDENCY. Get the last message that was sent/received.
+      const chatMessageElement = chatMessagesElement.lastChild?.firstChild?.firstChild?.lastChild
       // CRITICAL DOM DEPENDENCY
-      const chatMessagesElement = document.querySelector(`div[aria-live="polite"].Ge9Kpc`)
-      // Attempt to parse messages only if at least one message exists
-      if (chatMessagesElement && chatMessagesElement.children.length > 0) {
-        // CRITICAL DOM DEPENDENCY. Get the last message that was sent/received.
-        const chatMessageElement = chatMessagesElement.lastChild?.firstChild?.firstChild?.lastChild
-        // CRITICAL DOM DEPENDENCY
-        const personAndTimestampElement = chatMessageElement?.firstChild
-        const personName = personAndTimestampElement?.childNodes.length === 1 ? userName : personAndTimestampElement?.firstChild?.textContent
-        const timestamp = new Date().toISOString()
-        // CRITICAL DOM DEPENDENCY
-        const chatMessageText = chatMessageElement?.lastChild?.lastChild?.firstChild?.firstChild?.firstChild?.textContent
+      const personAndTimestampElement = chatMessageElement?.firstChild
+      const personName = personAndTimestampElement?.childNodes.length === 1 ? userName : personAndTimestampElement?.firstChild?.textContent
+      const timestamp = new Date().toISOString()
+      // CRITICAL DOM DEPENDENCY
+      const chatMessageText = chatMessageElement?.lastChild?.lastChild?.firstChild?.firstChild?.firstChild?.textContent
 
-        if (personName && chatMessageText) {
-          /**@type {ChatMessage} */
-          const chatMessageBlock = {
-            "personName": personName,
-            "timestamp": timestamp,
-            "chatMessageText": chatMessageText
-          }
-
-          // Lot of mutations fire for each message, pick them only once
-          pushUniqueChatBlock(chatMessageBlock)
+      if (personName && chatMessageText) {
+        /**@type {ChatMessage} */
+        const chatMessageBlock = {
+          "personName": personName,
+          "timestamp": timestamp,
+          "chatMessageText": chatMessageText
         }
-      }
-    }
-    catch (err) {
-      console.error(err)
-      if (!isChatMessagesDomErrorCaptured && !hasMeetingEnded) {
-        console.log(reportErrorMessage)
-        showNotification(extensionStatusJSON_bug)
 
-        logError("006", err)
+        // Lot of mutations fire for each message, pick them only once
+        pushUniqueChatBlock(chatMessageBlock)
       }
-      isChatMessagesDomErrorCaptured = true
     }
-  })
+  }
+  catch (err) {
+    console.error(err)
+    if (!isChatMessagesDomErrorCaptured && !hasMeetingEnded) {
+      console.log(reportErrorMessage)
+      showNotification(extensionStatusJSON_bug)
+
+      logError("006", err)
+    }
+    isChatMessagesDomErrorCaptured = true
+  }
 }
 
 
@@ -430,9 +429,8 @@ function chatMessagesMutationCallback(mutationsList) {
  * @description Updates the transcript buffer from a speaker/text pair.
  * @param {string} currentPersonName
  * @param {string} currentTranscriptText
- * @param {Element | undefined | null} captionElement
  */
-function processTranscriptBlock(currentPersonName, currentTranscriptText, captionElement) {
+function processTranscriptBlock(currentPersonName, currentTranscriptText) {
   if (!currentPersonName || !currentTranscriptText) {
     return
   }
@@ -512,15 +510,6 @@ function getCaptionSpeakerBlocksFromMutation(mutation) {
     })
   }
 
-  const captionsContainer = getCaptionsContainer()
-  if (captionsContainer?.contains(mutation.target)) {
-    const speakerBlocksInContainer = captionsContainer.querySelectorAll(captionSpeakerSelector)
-    const speakerBlock = speakerBlocksInContainer[speakerBlocksInContainer.length - 1]
-    if (speakerBlock && !speakerBlocks.includes(speakerBlock)) {
-      speakerBlocks.push(speakerBlock)
-    }
-  }
-
   addSpeakerBlock(mutation.target)
   mutation.addedNodes.forEach(addSpeakerBlock)
 
@@ -529,7 +518,7 @@ function getCaptionSpeakerBlocksFromMutation(mutation) {
 
 /**
  * @param {Element} speakerBlock
- * @returns {{ personName: string, transcriptText: string, captionElement: Element } | null}
+ * @returns {{ personName: string, transcriptText: string } | null}
  */
 function getCaptionBlockFromSpeakerBlock(speakerBlock) {
   const personName = speakerBlock.querySelector(captionSpeakerNameSelector)?.textContent?.trim()
@@ -539,8 +528,7 @@ function getCaptionBlockFromSpeakerBlock(speakerBlock) {
   if (personName && transcriptText && captionElement) {
     return {
       personName,
-      transcriptText,
-      captionElement
+      transcriptText
     }
   }
 
@@ -586,7 +574,6 @@ function pushUniqueChatBlock(chatBlock) {
     (item.chatMessageText === chatBlock.chatMessageText)
   )
   if (!isExisting) {
-    console.log(chatBlock)
     chatMessages.push(chatBlock)
     overWriteChromeStorage(["chatMessages"], false)
   }
@@ -689,7 +676,11 @@ function pulseStatus() {
     activityStatus.style.cssText = `background-color: #2A9ACA; ${statusActivityCSS}`
   }
 
-  setTimeout(() => {
+  if (pulseStatusTimeoutId) {
+    clearTimeout(pulseStatusTimeoutId)
+  }
+
+  pulseStatusTimeoutId = setTimeout(() => {
     activityStatus.style.cssText = `background-color: transparent; ${statusActivityCSS}`
   }, 3000)
 }
@@ -740,28 +731,19 @@ function selectElements(selector, text) {
  * @param {string | RegExp} [text]
  */
 async function waitForElement(selector, text) {
-  if (text) {
-    // loops for every animation frame change, until the required element is found
-    while (!Array.from(document.querySelectorAll(selector)).find(element => element.textContent === text)) {
-      await new Promise((resolve) => requestAnimationFrame(resolve))
+  return waitForDOMMatch(() => {
+    if (text) {
+      return Array.from(document.querySelectorAll(selector)).find(element => element.textContent === text) || null
     }
-  }
-  else {
-    // loops for every animation frame change, until the required element is found
-    while (!document.querySelector(selector)) {
-      await new Promise((resolve) => requestAnimationFrame(resolve))
-    }
-  }
-  return document.querySelector(selector)
+    return document.querySelector(selector)
+  })
 }
 
 /**
  * @param {{ selector: string, text: string }} captionsIconData
  */
 async function waitForCaptionsButton(captionsIconData) {
-  while (!getCaptionsButton(captionsIconData)) {
-    await new Promise((resolve) => requestAnimationFrame(resolve))
-  }
+  return waitForDOMMatch(() => getCaptionsButton(captionsIconData))
 }
 
 /**
@@ -810,13 +792,32 @@ function getCaptionsContainer() {
  * @description Waits for the live Google Meet captions region. Tries the current explicit captions region first and keeps older selectors as fallbacks.
  */
 async function waitForCaptionsContainer() {
-  while (true) {
-    const element = getCaptionsContainer()
-    if (element) {
-      return element
+  return waitForDOMMatch(() => getCaptionsContainer())
+}
+
+/**
+ * @template T
+ * @param {() => T | null | undefined} getMatch
+ * @returns {Promise<T>}
+ */
+function waitForDOMMatch(getMatch) {
+  return new Promise((resolve) => {
+    const initialMatch = getMatch()
+    if (initialMatch) {
+      resolve(initialMatch)
+      return
     }
-    await new Promise((resolve) => requestAnimationFrame(resolve))
-  }
+
+    const observer = new MutationObserver(() => {
+      const match = getMatch()
+      if (match) {
+        observer.disconnect()
+        resolve(match)
+      }
+    })
+
+    observer.observe(document.documentElement || document.body, { childList: true, subtree: true, characterData: true })
+  })
 }
 
 /**
